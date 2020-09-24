@@ -46,6 +46,7 @@ const (
 	StorageProviderS3    = "s3"
 	StorageProviderMinio = "minio"
 	StorageProviderSwift = "swift"
+	KeyMySQLPassword     = "password"
 )
 
 func (i *Invocation) SecretForBackend() *core.Secret {
@@ -256,4 +257,13 @@ func (f *Framework) SelfSignedCASecret(meta metav1.ObjectMeta, kind string) *cor
 			tlsKeyFileKey:  f.CertStore.CAKeyBytes(),
 		},
 	}
+}
+
+func (f *Framework) GetMySQLRootPassword(my *api.MySQL) (string, error) {
+	secret, err := f.kubeClient.CoreV1().Secrets(my.Namespace).Get(context.TODO(), my.Spec.DatabaseSecret.SecretName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	password := string(secret.Data[KeyMySQLPassword])
+	return password, nil
 }
