@@ -162,11 +162,11 @@ var _ = Describe("Initialize With Stash", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Create Repositories")
-		err = to.CreateRepository(repo)
+		_, err = to.CreateRepository(repo)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Create BackupConfiguration")
-		err = to.CreateBackupConfiguration(bc)
+		_, err = to.CreateBackupConfiguration(bc)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Check for snapshot count in stash-repository")
@@ -194,7 +194,7 @@ var _ = Describe("Initialize With Stash", func() {
 		createAndWaitForInitializing()
 
 		By("Create Stash-RestoreSession")
-		err = to.CreateRestoreSession(rs)
+		_, err = to.CreateRestoreSession(rs)
 		Expect(err).NotTo(HaveOccurred())
 
 		// eventually backupsession succeeded
@@ -471,13 +471,13 @@ var _ = Describe("Initialize With Stash", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("Create Repositories")
-				err = to.CreateRepository(repo)
+				_, err = to.CreateRepository(repo)
 				Expect(err).NotTo(HaveOccurred())
 
 				bc.Spec.Target.Ref.Name = customAppBindingName
 
 				By("Create BackupConfiguration")
-				err = to.CreateBackupConfiguration(bc)
+				_, err = to.CreateBackupConfiguration(bc)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("Check for snapshot count in stash-repository")
@@ -506,7 +506,7 @@ var _ = Describe("Initialize With Stash", func() {
 				createAndWaitForInitializing()
 
 				By("Create RestoreSession")
-				err = to.CreateRestoreSession(rs)
+				_, err = to.CreateRestoreSession(rs)
 				Expect(err).NotTo(HaveOccurred())
 
 				// eventually backupsession succeeded
