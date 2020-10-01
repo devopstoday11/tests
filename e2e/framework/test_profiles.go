@@ -51,6 +51,10 @@ const (
 	Reconfigure       = "reconfigure"
 	VolumeExpansion   = "volume_expansion"
 
+	RedisHorizontalScaling = "redis_horizontal"
+	RedisVerticalScaling   = "redis_vertical"
+	RedisUpgrade           = "redis_upgrading"
+
 	All        = "all"
 	Community  = "community"
 	Enterprise = "enterprise"
