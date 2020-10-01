@@ -28,6 +28,7 @@ import (
 	"kubedb.dev/apimachinery/client/clientset/versioned/scheme"
 	"kubedb.dev/tests/e2e/framework"
 	_ "kubedb.dev/tests/e2e/mongodb"
+	_ "kubedb.dev/tests/e2e/redis"
 
 	cm "github.com/jetstack/cert-manager/pkg/client/clientset/versioned"
 	. "github.com/onsi/ginkgo"
