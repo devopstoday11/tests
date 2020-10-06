@@ -163,13 +163,13 @@ var _ = Describe("Vertical Scaling", func() {
 
 		Context("From Data", func() {
 			var userConfig *v1.ConfigMap
-			var newCustomConfig *dbaapi.MongoDBCustomConfig
+			var newCustomConfig *dbaapi.MongoDBCustomConfiguration
 			var configSource *v1.VolumeSource
 			BeforeEach(func() {
 				to.skipMessage = ""
 				configName := to.App() + "-previous-config"
 				userConfig = to.GetCustomConfig(customConfigs, configName)
-				newCustomConfig = &dbaapi.MongoDBCustomConfig{
+				newCustomConfig = &dbaapi.MongoDBCustomConfiguration{
 					Data: data,
 				}
 				configSource = &v1.VolumeSource{
@@ -192,13 +192,13 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb = to.MongoDBStandalone()
 					to.mongodb.Spec.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, resource, nil, nil, nil, nil, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						Standalone: newCustomConfig,
 					}
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, nil)
+					to.runWithUserProvidedConfig(userConfig, nil, false)
 				})
 			})
 
@@ -207,13 +207,13 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb = to.MongoDBRS()
 					to.mongodb.Spec.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, nil, resource, nil, nil, nil, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						ReplicaSet: newCustomConfig,
 					}
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, nil)
+					to.runWithUserProvidedConfig(userConfig, nil, false)
 				})
 			})
 
@@ -224,7 +224,7 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb.Spec.ShardTopology.ConfigServer.ConfigSource = configSource
 					to.mongodb.Spec.ShardTopology.Mongos.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, nil, nil, resource, resource, resource, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						Mongos:       newCustomConfig,
 						ConfigServer: newCustomConfig,
 						Shard:        newCustomConfig,
@@ -232,7 +232,7 @@ var _ = Describe("Vertical Scaling", func() {
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, nil)
+					to.runWithUserProvidedConfig(userConfig, nil, false)
 				})
 			})
 		})
@@ -240,7 +240,7 @@ var _ = Describe("Vertical Scaling", func() {
 		Context("From New ConfigMap", func() {
 			var userConfig *v1.ConfigMap
 			var newUserConfig *v1.ConfigMap
-			var newCustomConfig *dbaapi.MongoDBCustomConfig
+			var newCustomConfig *dbaapi.MongoDBCustomConfiguration
 			var configSource *v1.VolumeSource
 
 			BeforeEach(func() {
@@ -248,7 +248,7 @@ var _ = Describe("Vertical Scaling", func() {
 				newConfigName := to.App() + "-new-config"
 				userConfig = to.GetCustomConfig(customConfigs, prevConfigName)
 				newUserConfig = to.GetCustomConfig(newCustomConfigs, newConfigName)
-				newCustomConfig = &dbaapi.MongoDBCustomConfig{
+				newCustomConfig = &dbaapi.MongoDBCustomConfiguration{
 					ConfigMap: &v1.LocalObjectReference{
 						Name: newUserConfig.Name,
 					},
@@ -273,13 +273,13 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb = to.MongoDBStandalone()
 					to.mongodb.Spec.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, resource, nil, nil, nil, nil, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						Standalone: newCustomConfig,
 					}
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, newUserConfig)
+					to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
 				})
 			})
 
@@ -288,13 +288,13 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb = to.MongoDBRS()
 					to.mongodb.Spec.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, nil, resource, nil, nil, nil, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						ReplicaSet: newCustomConfig,
 					}
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, newUserConfig)
+					to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
 				})
 			})
 
@@ -305,7 +305,7 @@ var _ = Describe("Vertical Scaling", func() {
 					to.mongodb.Spec.ShardTopology.ConfigServer.ConfigSource = configSource
 					to.mongodb.Spec.ShardTopology.Mongos.ConfigSource = configSource
 					to.mongoOpsReq = to.MongoDBOpsRequestVerticalScale(to.mongodb.Name, to.mongodb.Namespace, nil, nil, resource, resource, resource, nil)
-					to.mongoOpsReq.Spec.CustomConfig = &dbaapi.MongoDBCustomConfigSpec{
+					to.mongoOpsReq.Spec.Configuration = &dbaapi.MongoDBCustomConfigurationSpec{
 						Mongos:       newCustomConfig,
 						ConfigServer: newCustomConfig,
 						Shard:        newCustomConfig,
@@ -313,7 +313,7 @@ var _ = Describe("Vertical Scaling", func() {
 				})
 
 				It("should run successfully", func() {
-					to.runWithUserProvidedConfig(userConfig, newUserConfig)
+					to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
 				})
 			})
 		})

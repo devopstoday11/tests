@@ -56,13 +56,13 @@ var _ = Describe("Reconfigure", func() {
 
 	Context("From Data", func() {
 		var userConfig *v1.ConfigMap
-		var newCustomConfig *dbaapi.MongoDBCustomConfig
+		var newCustomConfig *dbaapi.MongoDBCustomConfiguration
 		var configSource *v1.VolumeSource
 		BeforeEach(func() {
 			to.skipMessage = ""
 			configName := to.App() + "-previous-config"
 			userConfig = to.GetCustomConfig(customConfigs, configName)
-			newCustomConfig = &dbaapi.MongoDBCustomConfig{
+			newCustomConfig = &dbaapi.MongoDBCustomConfiguration{
 				Data: data,
 			}
 			configSource = &v1.VolumeSource{
@@ -90,7 +90,7 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, nil)
+				to.runWithUserProvidedConfig(userConfig, nil, false)
 			})
 		})
 
@@ -104,7 +104,7 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, nil)
+				to.runWithUserProvidedConfig(userConfig, nil, false)
 			})
 		})
 
@@ -121,7 +121,7 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, nil)
+				to.runWithUserProvidedConfig(userConfig, nil, false)
 			})
 		})
 	})
@@ -129,7 +129,7 @@ var _ = Describe("Reconfigure", func() {
 	Context("From New ConfigMap", func() {
 		var userConfig *v1.ConfigMap
 		var newUserConfig *v1.ConfigMap
-		var newCustomConfig *dbaapi.MongoDBCustomConfig
+		var newCustomConfig *dbaapi.MongoDBCustomConfiguration
 		var configSource *v1.VolumeSource
 
 		BeforeEach(func() {
@@ -137,7 +137,7 @@ var _ = Describe("Reconfigure", func() {
 			newConfigName := to.App() + "-new-config"
 			userConfig = to.GetCustomConfig(customConfigs, prevConfigName)
 			newUserConfig = to.GetCustomConfig(newCustomConfigs, newConfigName)
-			newCustomConfig = &dbaapi.MongoDBCustomConfig{
+			newCustomConfig = &dbaapi.MongoDBCustomConfiguration{
 				ConfigMap: &v1.LocalObjectReference{
 					Name: newUserConfig.Name,
 				},
@@ -167,7 +167,7 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, newUserConfig)
+				to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
 			})
 		})
 
@@ -179,7 +179,7 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, newUserConfig)
+				to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
 			})
 		})
 
@@ -195,7 +195,79 @@ var _ = Describe("Reconfigure", func() {
 			})
 
 			It("should run successfully", func() {
-				to.runWithUserProvidedConfig(userConfig, newUserConfig)
+				to.runWithUserProvidedConfig(userConfig, newUserConfig, false)
+			})
+		})
+	})
+
+	FContext("Remove Config", func() {
+		var userConfig *v1.ConfigMap
+		var newCustomConfig *dbaapi.MongoDBCustomConfiguration
+		var configSource *v1.VolumeSource
+		BeforeEach(func() {
+			to.skipMessage = ""
+			configName := to.App() + "-previous-config"
+			userConfig = to.GetCustomConfig(customConfigs, configName)
+			newCustomConfig = &dbaapi.MongoDBCustomConfiguration{
+				Remove: true,
+			}
+			configSource = &v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: userConfig.Name,
+					},
+				},
+			}
+		})
+
+		AfterEach(func() {
+			By("Deleting configMap: " + userConfig.Name)
+			err := to.DeleteConfigMap(userConfig.ObjectMeta)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Context("Standalone MongoDB", func() {
+			BeforeEach(func() {
+				to.mongodb = to.MongoDBStandalone()
+				to.mongodb.Spec.Version = framework.DBVersion
+				to.mongodb.Spec.TerminationPolicy = api.TerminationPolicyWipeOut
+				to.mongodb.Spec.ConfigSource = configSource
+				to.mongoOpsReq = to.MongoDBOpsRequestReconfigure(to.mongodb.Name, to.mongodb.Namespace, newCustomConfig, nil, nil, nil, nil)
+			})
+
+			It("should run successfully", func() {
+				to.runWithUserProvidedConfig(userConfig, nil, true)
+			})
+		})
+
+		Context("With Replica Set", func() {
+			BeforeEach(func() {
+				to.mongodb = to.MongoDBRS()
+				to.mongodb.Spec.Version = framework.DBVersion
+				to.mongodb.Spec.TerminationPolicy = api.TerminationPolicyWipeOut
+				to.mongodb.Spec.ConfigSource = configSource
+				to.mongoOpsReq = to.MongoDBOpsRequestReconfigure(to.mongodb.Name, to.mongodb.Namespace, nil, newCustomConfig, nil, nil, nil)
+			})
+
+			It("should run successfully", func() {
+				to.runWithUserProvidedConfig(userConfig, nil, true)
+			})
+		})
+
+		FContext("With Sharding", func() {
+			BeforeEach(func() {
+				to.mongodb = to.MongoDBShard()
+				to.mongodb.Spec.Version = framework.DBVersion
+				to.mongodb.Spec.TerminationPolicy = api.TerminationPolicyWipeOut
+				to.mongodb.Spec.ShardTopology.Shard.ConfigSource = configSource
+				to.mongodb.Spec.ShardTopology.ConfigServer.ConfigSource = configSource
+				to.mongodb.Spec.ShardTopology.Mongos.ConfigSource = configSource
+				to.mongoOpsReq = to.MongoDBOpsRequestReconfigure(to.mongodb.Name, to.mongodb.Namespace, nil, nil, newCustomConfig, newCustomConfig, newCustomConfig)
+
+			})
+
+			It("should run successfully", func() {
+				to.runWithUserProvidedConfig(userConfig, nil, true)
 			})
 		})
 	})

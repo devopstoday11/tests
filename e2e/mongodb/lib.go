@@ -184,7 +184,7 @@ func (to *testOptions) deleteTestResource() {
 	to.EventuallyWipedOut(to.mongodb.ObjectMeta).Should(Succeed())
 }
 
-func (to *testOptions) runWithUserProvidedConfig(userConfig, newUserConfig *core.ConfigMap) {
+func (to *testOptions) runWithUserProvidedConfig(userConfig, newUserConfig *core.ConfigMap, remove bool) {
 	if to.skipMessage != "" {
 		Skip(to.skipMessage)
 	}
@@ -221,8 +221,13 @@ func (to *testOptions) runWithUserProvidedConfig(userConfig, newUserConfig *core
 	By("Checking Inserted Document after update")
 	to.EventuallyDocumentExists(to.mongodb.ObjectMeta, dbName, 3).Should(BeTrue())
 
-	By("Checking updated maxIncomingConnections from mongodb config")
-	to.EventuallyMaxIncomingConnections(to.mongodb.ObjectMeta).Should(Equal(newMaxIncomingConnections))
+	if remove {
+		By("Checking updated maxIncomingConnections from mongodb config")
+		to.EventuallyMaxIncomingConnections(to.mongodb.ObjectMeta).Should(Not(Equal(prevMaxIncomingConnections)))
+	} else {
+		By("Checking updated maxIncomingConnections from mongodb config")
+		to.EventuallyMaxIncomingConnections(to.mongodb.ObjectMeta).Should(Equal(newMaxIncomingConnections))
+	}
 }
 
 func runTestCommunity(testProfile string) bool {

@@ -27,7 +27,6 @@ import (
 
 	"github.com/appscode/go/types"
 	"gomodules.xyz/version"
-	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
@@ -157,20 +156,20 @@ func (m MongoDB) OffshootLabels() map[string]string {
 	out[meta_util.VersionLabelKey] = string(m.Spec.Version)
 	out[meta_util.InstanceLabelKey] = m.Name
 	out[meta_util.ComponentLabelKey] = ComponentDatabase
-	out[meta_util.ManagedByLabelKey] = GenericKey
-	return meta_util.FilterKeys(GenericKey, out, m.Labels)
+	out[meta_util.ManagedByLabelKey] = kubedb.GroupName
+	return meta_util.FilterKeys(kubedb.GroupName, out, m.Labels)
 }
 
 func (m MongoDB) ShardLabels(nodeNum int32) map[string]string {
-	return meta_util.FilterKeys(GenericKey, m.OffshootLabels(), m.ShardSelectors(nodeNum))
+	return meta_util.FilterKeys(kubedb.GroupName, m.OffshootLabels(), m.ShardSelectors(nodeNum))
 }
 
 func (m MongoDB) ConfigSvrLabels() map[string]string {
-	return meta_util.FilterKeys(GenericKey, m.OffshootLabels(), m.ConfigSvrSelectors())
+	return meta_util.FilterKeys(kubedb.GroupName, m.OffshootLabels(), m.ConfigSvrSelectors())
 }
 
 func (m MongoDB) MongosLabels() map[string]string {
-	return meta_util.FilterKeys(GenericKey, m.OffshootLabels(), m.MongosSelectors())
+	return meta_util.FilterKeys(kubedb.GroupName, m.OffshootLabels(), m.MongosSelectors())
 }
 
 func (m MongoDB) ResourceShortCode() string {
@@ -307,7 +306,7 @@ func (m MongoDB) StatsService() mona.StatsAccessor {
 }
 
 func (m MongoDB) StatsServiceLabels() map[string]string {
-	lbl := meta_util.FilterKeys(GenericKey, m.OffshootSelectors(), m.Labels)
+	lbl := meta_util.FilterKeys(kubedb.GroupName, m.OffshootSelectors(), m.Labels)
 	lbl[LabelRole] = RoleStats
 	return lbl
 }
@@ -332,8 +331,6 @@ func (m *MongoDB) SetDefaults(mgVersion *v1alpha1.MongoDBVersion, topology *core
 	}
 	if m.Spec.TerminationPolicy == "" {
 		m.Spec.TerminationPolicy = TerminationPolicyDelete
-	} else if m.Spec.TerminationPolicy == TerminationPolicyPause {
-		m.Spec.TerminationPolicy = TerminationPolicyHalt
 	}
 
 	if m.Spec.SSLMode == "" {
@@ -363,9 +360,6 @@ func (m *MongoDB) SetDefaults(mgVersion *v1alpha1.MongoDBVersion, topology *core
 			},
 		}
 
-		if m.Spec.ShardTopology.Mongos.Strategy.Type == "" {
-			m.Spec.ShardTopology.Mongos.Strategy.Type = apps.RollingUpdateDeploymentStrategyType
-		}
 		if m.Spec.ShardTopology.ConfigServer.PodTemplate.Spec.ServiceAccountName == "" {
 			m.Spec.ShardTopology.ConfigServer.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 		}
@@ -424,7 +418,7 @@ func (m *MongoDB) setDefaultTLSConfig() {
 			Alias:      string(MongoDBServerCert),
 			SecretName: "",
 			Subject: &kmapi.X509Subject{
-				Organizations:       []string{DatabaseNamePrefix},
+				Organizations:       []string{KubeDBOrganization},
 				OrganizationalUnits: []string{string(MongoDBServerCert)},
 			},
 		})
@@ -435,7 +429,7 @@ func (m *MongoDB) setDefaultTLSConfig() {
 			Alias:      string(MongoDBServerCert),
 			SecretName: m.CertificateName(MongoDBServerCert, ""),
 			Subject: &kmapi.X509Subject{
-				Organizations:       []string{DatabaseNamePrefix},
+				Organizations:       []string{KubeDBOrganization},
 				OrganizationalUnits: []string{string(MongoDBServerCert)},
 			},
 		})
@@ -444,7 +438,7 @@ func (m *MongoDB) setDefaultTLSConfig() {
 		Alias:      string(MongoDBClientCert),
 		SecretName: m.CertificateName(MongoDBClientCert, ""),
 		Subject: &kmapi.X509Subject{
-			Organizations:       []string{DatabaseNamePrefix},
+			Organizations:       []string{KubeDBOrganization},
 			OrganizationalUnits: []string{string(MongoDBClientCert)},
 		},
 	})
@@ -452,10 +446,66 @@ func (m *MongoDB) setDefaultTLSConfig() {
 		Alias:      string(MongoDBMetricsExporterCert),
 		SecretName: m.CertificateName(MongoDBMetricsExporterCert, ""),
 		Subject: &kmapi.X509Subject{
-			Organizations:       []string{DatabaseNamePrefix},
+			Organizations:       []string{KubeDBOrganization},
 			OrganizationalUnits: []string{string(MongoDBMetricsExporterCert)},
 		},
 	})
+}
+func (m *MongoDB) getCmdForProbes(mgVersion *v1alpha1.MongoDBVersion) []string {
+	var sslArgs string
+	if m.Spec.SSLMode == SSLModeRequireSSL {
+		sslArgs = fmt.Sprintf("--tls --tlsCAFile=%v/%v --tlsCertificateKeyFile=%v/%v",
+			MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
+
+		breakingVer, _ := version.NewVersion("4.1")
+		exceptionVer, _ := version.NewVersion("4.1.4")
+		currentVer, err := version.NewVersion(mgVersion.Spec.Version)
+		if err != nil {
+			panic(fmt.Errorf("MongoDB %s/%s: unable to parse version. reason: %s", m.Namespace, m.Name, err.Error()))
+		}
+		if currentVer.Equal(exceptionVer) {
+			sslArgs = fmt.Sprintf("--tls --tlsCAFile=%v/%v --tlsPEMKeyFile=%v/%v", MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
+		} else if currentVer.LessThan(breakingVer) {
+			sslArgs = fmt.Sprintf("--ssl --sslCAFile=%v/%v --sslPEMKeyFile=%v/%v", MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
+		}
+	}
+
+	return []string{
+		"bash",
+		"-c",
+		fmt.Sprintf(`set -x; if [[ $(mongo admin --host=localhost %v --username=$MONGO_INITDB_ROOT_USERNAME --password=$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase=admin --quiet --eval "db.adminCommand('ping').ok" ) -eq "1" ]]; then 
+          exit 0
+        fi
+        exit 1`, sslArgs),
+	}
+}
+
+func (m *MongoDB) GetDefaultLivenessProbeSpec(mgVersion *v1alpha1.MongoDBVersion) *core.Probe {
+	return &core.Probe{
+		Handler: core.Handler{
+			Exec: &core.ExecAction{
+				Command: m.getCmdForProbes(mgVersion),
+			},
+		},
+		FailureThreshold: 3,
+		PeriodSeconds:    10,
+		SuccessThreshold: 1,
+		TimeoutSeconds:   5,
+	}
+}
+
+func (m *MongoDB) GetDefaultReadinessProbeSpec(mgVersion *v1alpha1.MongoDBVersion) *core.Probe {
+	return &core.Probe{
+		Handler: core.Handler{
+			Exec: &core.ExecAction{
+				Command: m.getCmdForProbes(mgVersion),
+			},
+		},
+		FailureThreshold: 3,
+		PeriodSeconds:    10,
+		SuccessThreshold: 1,
+		TimeoutSeconds:   1,
+	}
 }
 
 // setDefaultProbes sets defaults only when probe fields are nil.
@@ -466,64 +516,12 @@ func (m *MongoDB) setDefaultProbes(podTemplate *ofst.PodTemplateSpec, mgVersion 
 	if podTemplate == nil {
 		return
 	}
-	var sslArgs string
-	if m.Spec.SSLMode == SSLModeRequireSSL {
-		sslArgs = fmt.Sprintf("--tls --tlsCAFile=%v/%v --tlsCertificateKeyFile=%v/%v",
-			MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
-
-		breakingVer, err := version.NewVersion("4.1")
-		if err != nil {
-			return
-		}
-		exceptionVer, err := version.NewVersion("4.1.4")
-		if err != nil {
-			return
-		}
-		currentVer, err := version.NewVersion(mgVersion.Spec.Version)
-		if err != nil {
-			return
-		}
-		if currentVer.Equal(exceptionVer) {
-			sslArgs = fmt.Sprintf("--tls --tlsCAFile=%v/%v --tlsPEMKeyFile=%v/%v", MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
-		} else if currentVer.LessThan(breakingVer) {
-			sslArgs = fmt.Sprintf("--ssl --sslCAFile=%v/%v --sslPEMKeyFile=%v/%v", MongoCertDirectory, TLSCACertFileName, MongoCertDirectory, MongoClientFileName)
-		}
-	}
-
-	cmd := []string{
-		"bash",
-		"-c",
-		fmt.Sprintf(`set -x; if [[ $(mongo admin --host=localhost %v --username=$MONGO_INITDB_ROOT_USERNAME --password=$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase=admin --quiet --eval "db.adminCommand('ping').ok" ) -eq "1" ]]; then 
-          exit 0
-        fi
-        exit 1`, sslArgs),
-	}
 
 	if podTemplate.Spec.LivenessProbe == nil {
-		podTemplate.Spec.LivenessProbe = &core.Probe{
-			Handler: core.Handler{
-				Exec: &core.ExecAction{
-					Command: cmd,
-				},
-			},
-			FailureThreshold: 3,
-			PeriodSeconds:    10,
-			SuccessThreshold: 1,
-			TimeoutSeconds:   5,
-		}
+		podTemplate.Spec.LivenessProbe = m.GetDefaultLivenessProbeSpec(mgVersion)
 	}
 	if podTemplate.Spec.ReadinessProbe == nil {
-		podTemplate.Spec.ReadinessProbe = &core.Probe{
-			Handler: core.Handler{
-				Exec: &core.ExecAction{
-					Command: cmd,
-				},
-			},
-			FailureThreshold: 3,
-			PeriodSeconds:    10,
-			SuccessThreshold: 1,
-			TimeoutSeconds:   1,
-		}
+		podTemplate.Spec.ReadinessProbe = m.GetDefaultReadinessProbeSpec(mgVersion)
 	}
 }
 
